@@ -1,0 +1,10 @@
+{% extends 'base.html.twig' %}
+
+{% block body %}
+    <h1>Delete Memo</h1>
+    <p>Are you sure you want to delete this memo?</p>
+    <form method="post" action="{{ path('memo_delete', {'id': memo.getId()}) }}">
+        <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ memo.getId()) }}">
+        <button type="submit">Delete</button>
+    </form>
+{% endblock %}
