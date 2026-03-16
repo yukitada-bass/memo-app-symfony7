@@ -33,4 +33,15 @@ class MemoRepository extends ServiceEntityRepository
         $em->remove($memo);
         $em->flush();
     }
+
+    /**
+     * @return Memo[]
+     */
+    public function findByPriority(int $priority): array
+    {
+        return $this->findBy(
+            ['priority' => $priority],
+            ['id' => 'DESC']
+        );
+    }
 }

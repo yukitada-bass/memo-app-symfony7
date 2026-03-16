@@ -17,12 +17,43 @@ final class MemoController extends AbstractController
     ) {}
 
     #[Route('/', name: 'memo_index')]
-    public function index(): Response
+    public function index(Request $request): Response
     {
-        $memos = $this->memoRepository->findAll();
+        $priority = $request->query->get('priority');
+
+        $memos = null;
+        if ($priority === null || $priority === '' || $priority === 'all') {
+            $memos = $this->memoRepository->findAll();
+        } else {
+            $normalized = match ($priority) {
+                'low', '0' => 0,
+                'medium', '1' => 1,
+                'high', '2' => 2,
+                default => null,
+            };
+
+            if ($normalized === null) {
+                $memos = $this->memoRepository->findAll();
+            } else {
+                $memos = $this->memoRepository->findByPriority($normalized);
+            }
+        }
+
+        $groupedMemos = [
+            Memo::STATUS_NOT_STARTED => [],
+            Memo::STATUS_IN_PROGRESS => [],
+            Memo::STATUS_DONE => [],
+        ];
+
+        foreach ($memos as $memo) {
+            $status = $memo->getStatus() ?? Memo::STATUS_NOT_STARTED;
+            $groupedMemos[$status][] = $memo;
+        }
 
         return $this->render('memo/index.html.twig', [
             'memos' => $memos,
+            'groupedMemos' => $groupedMemos,
+            'selected_priority' => $priority,
         ]);
     }
 
@@ -78,5 +109,22 @@ final class MemoController extends AbstractController
         return $this->render('memo/delete.html.twig', [
             'memo' => $memo,
         ]);
+    }
+
+    #[Route(path: '/memo/{id}/status', name: 'memo_status_update', methods: ['POST'])]
+    public function updateStatus(Request $request, Memo $memo): Response
+    {
+        $data = json_decode($request->getContent(), true);
+        $status = isset($data['status']) ? (int) $data['status'] : null;
+
+        $validStatuses = [Memo::STATUS_NOT_STARTED, Memo::STATUS_IN_PROGRESS, Memo::STATUS_DONE];
+        if (!in_array($status, $validStatuses, true)) {
+            return $this->json(['error' => '無効なステータスです'], Response::HTTP_BAD_REQUEST);
+        }
+
+        $memo->setStatus($status);
+        $this->memoRepository->saveMemo($memo);
+
+        return $this->json(['status' => $memo->getStatus()]);
     }
 }

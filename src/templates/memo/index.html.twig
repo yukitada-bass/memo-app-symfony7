@@ -1,27 +1,140 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}Hello MemoController!{% endblock %}
+{% block title %}Memo Board{% endblock %}
 
 {% block body %}
-<style>
-    .example-wrapper { margin: 1em auto; max-width: 800px; width: 95%; font: 18px/1.5 sans-serif; }
-    .example-wrapper code { background: #F5F5F5; padding: 2px 6px; }
-</style>
+{% set priorities = ['低', '中', '高'] %}
+{% set statuses = ['着手前', '進行中', '完了'] %}
+{% set count_not_started = groupedMemos[0]|length %}
+{% set count_in_progress = groupedMemos[1]|length %}
+{% set count_done = groupedMemos[2]|length %}
+{% set count_all = count_not_started + count_in_progress + count_done %}
 
-<div class="example-wrapper">
-    <h1>メモ一覧</h1>
+<div class="page">
+    <header class="page-hero">
+        <div class="hero-text">
+            <p class="eyebrow">Memo Board</p>
+            <h1>メモ一覧</h1>
+            <p class="lead">優先度とステータスで整理して、今やるべきことを一目で確認。</p>
+        </div>
+        <a href="/create" class="btn-primary">新規作成</a>
+    </header>
 
-    <ul>
-    {% for item in memos %}
-        <li>
-            <div>{{ item.content }}</div>
-            <a href="memo/{{ item.id }}/edit">編集</a>
-            <a href="memo/{{ item.id }}/delete">削除</a>
-        </li>
+    <section class="toolbar">
+        <div class="filter-panel">
+            <a href="{{ path('memo_index', {'priority': 'all'}) }}" class="btn {{ selected_priority in [null, '', 'all'] ? 'active' : '' }}">全て</a>
+            <a href="{{ path('memo_index', {'priority': 'low'}) }}" class="btn {{ selected_priority == 'low' ? 'active' : '' }}">低</a>
+            <a href="{{ path('memo_index', {'priority': 'medium'}) }}" class="btn {{ selected_priority == 'medium' ? 'active' : '' }}">中</a>
+            <a href="{{ path('memo_index', {'priority': 'high'}) }}" class="btn {{ selected_priority == 'high' ? 'active' : '' }}">高</a>
+        </div>
+        <div class="stats">
+            <div class="stat">
+                <span class="stat-label">合計</span>
+                <span class="stat-value">{{ count_all }}</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">着手前</span>
+                <span class="stat-value">{{ count_not_started }}</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">進行中</span>
+                <span class="stat-value">{{ count_in_progress }}</span>
+            </div>
+            <div class="stat">
+                <span class="stat-label">完了</span>
+                <span class="stat-value">{{ count_done }}</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="memo-status-container">
+    {% for statusKey, statusLabel in statuses %}
+        <section class="memo-section status-{{ statusKey }}" data-status="{{ statusKey }}">
+            <header class="section-header">
+                <h2>{{ statusLabel }}</h2>
+                <span class="section-count">{{ (groupedMemos[statusKey]|length) }}</span>
+            </header>
+            {% set list = groupedMemos[statusKey] ?? [] %}
+            {% if list is empty %}
+                <p class="empty">（タスクがありません）</p>
+            {% else %}
+                <ul>
+                    {% for item in list %}
+                        <li>
+                            <article class="memo-card" draggable="true" data-id="{{ item.id }}">
+                                <div class="memo-tags">
+                                    <span class="tag priority-{{ item.priority }}">優先度: {{ priorities[item.priority] }}</span>
+                                    <span class="tag status">{{ statusLabel }}</span>
+                                </div>
+                                <p class="memo-content">{{ item.content }}</p>
+                                <div class="memo-actions">
+                                    <a class="action-link" href="memo/{{ item.id }}/edit">編集</a>
+                                    <a class="action-link danger" href="memo/{{ item.id }}/delete">削除</a>
+                                </div>
+                            </article>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </section>
     {% endfor %}
-    </ul>
-
-    <a href="/create">新規作成</a>
-
+    </div>
 </div>
+
+{% block javascripts %}
+<script>
+window.addEventListener('DOMContentLoaded', function () {
+    const sections = document.querySelectorAll('.memo-section[data-status]');
+
+    sections.forEach((section) => {
+        section.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            section.classList.add('drop-target');
+        });
+
+        section.addEventListener('dragleave', () => {
+            section.classList.remove('drop-target');
+        });
+
+        section.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            section.classList.remove('drop-target');
+
+            const memoId = e.dataTransfer.getData('text/plain');
+            const status = section.dataset.status;
+            if (!memoId || status === undefined) {
+                return;
+            }
+
+            const response = await fetch(`/memo/${memoId}/status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({status: Number(status)}),
+            });
+
+            if (response.ok) {
+                // ページ更新で状態を反映（簡単実装）
+                window.location.reload();
+            } else {
+                console.error('ステータス更新に失敗しました');
+            }
+        });
+    });
+
+    const cards = document.querySelectorAll('.memo-card[draggable="true"]');
+    cards.forEach((card) => {
+        card.addEventListener('dragstart', (e) => {
+            e.dataTransfer.setData('text/plain', card.dataset.id);
+            card.classList.add('dragging');
+        });
+        card.addEventListener('dragend', () => {
+            card.classList.remove('dragging');
+        });
+    });
+});
+</script>
+{% endblock %}
 {% endblock %}
