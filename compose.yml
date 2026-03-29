@@ -19,6 +19,8 @@ services:
 
   postgres:
     image: postgres:15
+    ports:
+      - "5432:5432"
     environment:
       POSTGRES_DB: app
       POSTGRES_USER: root
@@ -36,7 +38,9 @@ services:
     working_dir: /app
     volumes:
       - ./src:/app
-    command: tail -f /dev/null
+    command: npm run dev
+    ports:
+      - "5173:5173"
 
   redis:
     image: redis:7
